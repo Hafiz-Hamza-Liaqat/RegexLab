@@ -12,22 +12,16 @@ if (!fs.existsSync(indexPath)) {
 
 const html = fs.readFileSync(indexPath, 'utf8');
 
-// Ensure there are no incorrect uppercase /RegexLab/ references
-if (html.includes('/RegexLab/')) {
-  console.error('Error: index.html contains incorrect uppercase "/RegexLab/" reference. Slug must be lowercase "/regexlab/".');
-  process.exit(1);
-}
-
-// Check for /regexlab/assets/ references
-const assetRegex = /(?:src|href)="(\/regexlab\/assets\/[^"]+)"/g;
+// Match asset links: relative (./assets/), /regexlab/assets/, or /RegexLab/assets/
+const assetRegex = /(?:src|href)="((?:\.\/|\/regexlab\/|\/RegexLab\/)?assets\/[^"]+)"/g;
 const matches = [...html.matchAll(assetRegex)].map((m) => m[1]);
 
 if (matches.length === 0) {
-  console.error('Error: No assets under "/regexlab/assets/" were found in index.html. Ensure BASE_PATH=/regexlab/ was set.');
+  console.error('Error: No assets under assets/ were found in index.html.');
   process.exit(1);
 }
 
-console.log(`Found ${matches.length} asset reference(s) under /regexlab/assets/ in index.html:`);
+console.log(`Found ${matches.length} asset reference(s) in index.html:`);
 
 let hasJs = false;
 let hasCss = false;
@@ -42,7 +36,7 @@ for (const assetPath of matches) {
   }
 
   // Strip prefix and resolve path inside dist
-  const relativePath = assetPath.replace(/^\/regexlab\//, '');
+  const relativePath = assetPath.replace(/^(?:\.\/|\/regexlab\/|\/RegexLab\/)?/, '');
   const filePath = path.join(distDir, relativePath);
 
   if (!fs.existsSync(filePath)) {
@@ -58,13 +52,13 @@ for (const assetPath of matches) {
 }
 
 if (!hasJs) {
-  console.error('Error: No JavaScript bundle under /regexlab/assets/ was found.');
+  console.error('Error: No JavaScript bundle was found.');
   process.exit(1);
 }
 
 if (!hasCss) {
-  console.error('Error: No stylesheet bundle under /regexlab/assets/ was found.');
+  console.error('Error: No stylesheet bundle was found.');
   process.exit(1);
 }
 
-console.log('✓ Build verification passed: index.html correctly references /regexlab/assets/ and all assets exist in dist.');
+console.log('✓ Build verification passed: all assets referenced in index.html exist with non-zero size on disk.');

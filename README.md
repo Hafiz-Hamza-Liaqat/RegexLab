@@ -8,8 +8,8 @@
 
 **RegexLab** is a fast browser application that bridges professional regex testing, authentic animated text analysis, and interactive gamified regex learning.
 
-- **Live Application:** [https://hafiz-hamza-liaqat.github.io/regexlab/](https://hafiz-hamza-liaqat.github.io/regexlab/)
-- **Repository:** [https://github.com/Hafiz-Hamza-Liaqat/regexlab](https://github.com/Hafiz-Hamza-Liaqat/regexlab)
+- **Live Application:** [https://hafiz-hamza-liaqat.github.io/RegexLab/](https://hafiz-hamza-liaqat.github.io/RegexLab/) (redirects from [/regexlab/](https://hafiz-hamza-liaqat.github.io/regexlab/))
+- **Repository:** [https://github.com/Hafiz-Hamza-Liaqat/RegexLab](https://github.com/Hafiz-Hamza-Liaqat/RegexLab)
 
 ---
 

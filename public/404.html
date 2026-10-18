@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Redirecting to RegexLab...</title>
+    <script>
+      (function() {
+        var path = window.location.pathname;
+        if (path.toLowerCase().startsWith('/regexlab')) {
+          var sub = path.slice('/regexlab'.length);
+          if (!sub.startsWith('/')) sub = '/' + sub;
+          window.location.replace('/RegexLab' + sub + window.location.search + window.location.hash);
+        } else {
+          window.location.replace('/RegexLab/');
+        }
+      })();
+    </script>
+  </head>
+  <body style="font-family: system-ui, sans-serif; background: #020617; color: #f8fafc; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0;">
+    <div style="text-align: center; padding: 2rem;">
+      <h1 style="font-size: 1.5rem; margin-bottom: 0.5rem;">RegexLab</h1>
+      <p style="color: #94a3b8;">Redirecting to <a href="/RegexLab/" style="color: #6366f1; text-decoration: underline;">RegexLab</a>...</p>
+    </div>
+  </body>
+</html>
