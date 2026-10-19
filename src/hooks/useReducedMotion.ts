@@ -23,6 +23,15 @@ export function syncDocumentMotionAttribute(prefersReduced: boolean): void {
 }
 
 export function useReducedMotion() {
+  const [hasExplicitPreference, setHasExplicitPreference] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      return localStorage.getItem(REDUCED_MOTION_STORAGE_KEY) !== null;
+    } catch {
+      return false;
+    }
+  });
+
   const [prefersReduced, setPrefersReduced] = useState<boolean>(() => {
     const initial = getInitialMotionPreference();
     syncDocumentMotionAttribute(initial);
@@ -34,21 +43,23 @@ export function useReducedMotion() {
     syncDocumentMotionAttribute(prefersReduced);
   }, [prefersReduced]);
 
-  // If no explicit user override is stored, respond to OS-level media query changes
+  // If no explicit user override is stored, respond to OS-level media query changes.
+  // Once the user makes an explicit choice in this session, unbind the listener.
   useEffect(() => {
-    if (typeof window === 'undefined' || !window.matchMedia) return;
-
-    try {
-      if (localStorage.getItem(REDUCED_MOTION_STORAGE_KEY) !== null) {
-        // User has set an explicit preference, do not override with OS changes
-        return;
-      }
-    } catch {
-      // ignore
+    if (hasExplicitPreference || typeof window === 'undefined' || !window.matchMedia) {
+      return;
     }
 
     const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
     const handleMediaChange = (event: MediaQueryListEvent) => {
+      try {
+        if (localStorage.getItem(REDUCED_MOTION_STORAGE_KEY) !== null) {
+          setHasExplicitPreference(true);
+          return;
+        }
+      } catch {
+        // ignore
+      }
       setPrefersReduced(event.matches);
     };
 
@@ -59,9 +70,10 @@ export function useReducedMotion() {
       mediaQuery.addListener(handleMediaChange);
       return () => mediaQuery.removeListener(handleMediaChange);
     }
-  }, []);
+  }, [hasExplicitPreference]);
 
   const updatePrefersReduced = useCallback((valOrUpdater: boolean | ((prev: boolean) => boolean)) => {
+    setHasExplicitPreference(true);
     setPrefersReduced((prev) => {
       const next = typeof valOrUpdater === 'function' ? valOrUpdater(prev) : valOrUpdater;
       try {

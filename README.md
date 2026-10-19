@@ -217,7 +217,7 @@ npm run check
 This runs:
 1. `npm run lint` — Oxlint and ESLint checks (0 errors, 0 warnings).
 2. `npm run typecheck` — TypeScript strict typecheck (`tsc -b`).
-3. `npm run test:run` — Vitest unit & component test suite (71 passing tests across 8 test suites).
+3. `npm run test:run` — Vitest unit & component test suite (73 passing tests across 8 test suites).
 
 ### Playwright End-to-End Tests
 
