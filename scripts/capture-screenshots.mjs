@@ -210,6 +210,11 @@ async function run() {
       await page.goto(baseUrl);
       await page.getByRole('tab', { name: /Regex Arcade/i }).click();
       await page.getByText('Regex Detective Arcade').waitFor({ state: 'visible' });
+      await page.waitForTimeout(300);
+
+      // Open the dedicated Detective Trophy Case modal
+      await page.getByRole('button', { name: /Inspect Detective Badges/i }).click();
+      await page.getByText('Detective Trophy Case').waitFor({ state: 'visible' });
       await page.waitForTimeout(400);
 
       await page.screenshot({

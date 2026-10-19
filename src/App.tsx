@@ -78,6 +78,8 @@ export const App: React.FC = () => {
   const [progress, setProgress] = useState<UserProgress>(() => loadProgress());
 
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const latestMatchReqIdRef = useRef<string | null>(null);
+  const latestReplaceReqIdRef = useRef<string | null>(null);
 
   const flagsString = (Object.keys(flags) as (keyof RegexFlags)[])
     .filter((k) => flags[k])
@@ -88,6 +90,7 @@ export const App: React.FC = () => {
    */
   const handleExecuteRegex = useCallback(async () => {
     const reqId = `req-${Date.now()}-${Math.random()}`;
+    latestMatchReqIdRef.current = reqId;
     setMatchResult((prev) => ({ ...prev, status: 'running' }));
     setMascotMood('scanning');
     setMascotMessage('Dot is scanning the text!');
@@ -98,6 +101,11 @@ export const App: React.FC = () => {
       flags: flagsString,
       text: testText,
     });
+
+    // Guard against superseded or stale responses
+    if (latestMatchReqIdRef.current !== reqId || result.status === 'cancelled') {
+      return;
+    }
 
     setMatchResult(result);
 
@@ -139,6 +147,7 @@ export const App: React.FC = () => {
       return;
     }
     const reqId = `rep-${Date.now()}-${Math.random()}`;
+    latestReplaceReqIdRef.current = reqId;
     const result = await defaultWorkerManager.runReplace({
       id: reqId,
       pattern,
@@ -146,6 +155,12 @@ export const App: React.FC = () => {
       text: testText,
       replacement: replacementTemplate,
     });
+
+    // Guard against superseded or stale replacement responses
+    if (latestReplaceReqIdRef.current !== reqId || result.status === 'cancelled') {
+      return;
+    }
+
     setReplaceResult(result);
 
     if (result.status === 'success' && result.replacementCount > 0) {

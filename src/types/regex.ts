@@ -41,7 +41,7 @@ export interface RegexRunRequest {
   timeoutMs?: number;
 }
 
-export type RegexRunStatus = 'idle' | 'running' | 'success' | 'no-match' | 'error' | 'timeout';
+export type RegexRunStatus = 'idle' | 'running' | 'success' | 'no-match' | 'error' | 'timeout' | 'cancelled';
 
 export interface RegexRunResult {
   id: string;
@@ -62,7 +62,7 @@ export interface ReplaceRunRequest {
   timeoutMs?: number;
 }
 
-export type ReplaceRunStatus = 'idle' | 'running' | 'success' | 'error' | 'timeout';
+export type ReplaceRunStatus = 'idle' | 'running' | 'success' | 'error' | 'timeout' | 'cancelled';
 
 export interface ReplaceRunResult {
   id: string;

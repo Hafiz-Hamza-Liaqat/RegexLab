@@ -35,6 +35,7 @@ export const RegexArcadeView: React.FC<RegexArcadeViewProps> = ({
   const [unlockedHints, setUnlockedHints] = useState<number>(0);
   const [evalResult, setEvalResult] = useState<MissionEvaluationResult | null>(null);
   const [justSolved, setJustSolved] = useState<boolean>(false);
+  const [isTrophyModalOpen, setIsTrophyModalOpen] = useState<boolean>(false);
 
   const currentMission: Mission =
     MISSIONS.find((m) => m.id === selectedMissionId) || MISSIONS[0]!;
@@ -220,6 +221,15 @@ export const RegexArcadeView: React.FC<RegexArcadeViewProps> = ({
                 );
               })}
             </div>
+            <button
+              type="button"
+              onClick={() => setIsTrophyModalOpen(true)}
+              className="mt-2.5 w-full py-1.5 px-2 rounded-md bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 border border-indigo-200 dark:border-indigo-800/60 text-indigo-700 dark:text-indigo-300 font-medium text-[11px] flex items-center justify-center gap-1 transition-colors cursor-pointer"
+            >
+              <Trophy className="w-3 h-3 text-amber-500" />
+              <span>Inspect Detective Badges</span>
+              <ChevronRight className="w-3 h-3" />
+            </button>
           </div>
         </div>
 
@@ -453,6 +463,129 @@ export const RegexArcadeView: React.FC<RegexArcadeViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Trophy Case & Mascot Showcase Modal */}
+      {isTrophyModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="trophy-case-title"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs"
+        >
+          <div className="relative w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl text-slate-100 space-y-6">
+            {/* Modal Header with Close Button */}
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400">
+                  <Trophy className="w-6 h-6" />
+                </div>
+                <div>
+                  <h2 id="trophy-case-title" className="text-xl font-bold text-slate-100 flex items-center gap-2">
+                    Detective Trophy Case
+                    <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-amber-950 border border-amber-700 text-amber-300">
+                      {progress.unlockedAchievementIds.length} / {ACHIEVEMENTS.length} Badges
+                    </span>
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    Earn XP and unlock badges by solving arcade missions and exploring regex features.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsTrophyModalOpen(false)}
+                aria-label="Close Trophy Case"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Mascot Showcase Card */}
+            <div className="rounded-xl border border-indigo-900/60 bg-indigo-950/30 p-4 flex flex-col sm:flex-row items-center gap-4">
+              <DotMascot
+                mood="champion"
+                message="Case Dossier & Trophy Case — Inspect all 7 detective achievements and milestones!"
+                size="md"
+              />
+              <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 gap-2 w-full text-center">
+                <div className="p-2.5 rounded-lg bg-slate-800/80 border border-slate-700">
+                  <div className="text-base font-bold text-amber-400">{progress.totalXp} XP</div>
+                  <div className="text-[10px] text-slate-400 uppercase tracking-wider">Total Score</div>
+                </div>
+                <div className="p-2.5 rounded-lg bg-slate-800/80 border border-slate-700">
+                  <div className="text-base font-bold text-emerald-400">{completedCount} / {MISSIONS.length}</div>
+                  <div className="text-[10px] text-slate-400 uppercase tracking-wider">Missions Solved</div>
+                </div>
+                <div className="p-2.5 rounded-lg bg-slate-800/80 border border-slate-700 col-span-2 sm:col-span-1">
+                  <div className="text-base font-bold text-indigo-400">Level {Math.floor(progress.totalXp / 100) + 1}</div>
+                  <div className="text-[10px] text-slate-400 uppercase tracking-wider">Detective Rank</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Achievements Collection Grid */}
+            <div className="space-y-3">
+              <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                Detective Milestone Badges
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {ACHIEVEMENTS.map((ach) => {
+                  const isUnlocked = progress.unlockedAchievementIds.includes(ach.id);
+                  return (
+                    <div
+                      key={ach.id}
+                      className={`p-3.5 rounded-xl border flex items-start gap-3 transition-all ${
+                        isUnlocked
+                          ? 'border-amber-500/40 bg-amber-950/20 shadow-xs'
+                          : 'border-slate-800 bg-slate-900/60 opacity-60'
+                      }`}
+                    >
+                      <div
+                        className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0 border ${
+                          isUnlocked
+                            ? 'bg-amber-500/20 border-amber-500/40'
+                            : 'bg-slate-800 border-slate-700 grayscale'
+                        }`}
+                      >
+                        {ach.badge}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="text-xs font-bold text-slate-200 truncate">{ach.title}</span>
+                          <span
+                            className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                              isUnlocked
+                                ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                                : 'bg-slate-800 text-slate-400'
+                            }`}
+                          >
+                            {isUnlocked ? 'Unlocked' : 'Locked'}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+                          {ach.description}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex justify-end pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setIsTrophyModalOpen(false)}
+                className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold cursor-pointer transition-colors"
+              >
+                Done Inspecting
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

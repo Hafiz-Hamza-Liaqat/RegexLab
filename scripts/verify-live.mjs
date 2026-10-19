@@ -26,7 +26,7 @@ async function check() {
   const jsAssetUrl = new URL(assetPaths.find((p) => p.endsWith('.js')).replace(/^\.\//, ''), url).href;
   const jsRes = await fetch(jsAssetUrl);
   const jsText = await jsRes.text();
-  const workerMatch = jsText.match(/assets\/regex\.worker-[a-zA-Z0-9_\-]+\.js/);
+  const workerMatch = jsText.match(/assets\/regex\.worker-[a-zA-Z0-9_-]+\.js/);
   if (workerMatch) {
     const workerUrl = new URL(workerMatch[0], url).href;
     const workerRes = await fetch(workerUrl);

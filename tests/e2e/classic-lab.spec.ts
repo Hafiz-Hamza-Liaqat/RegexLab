@@ -122,4 +122,41 @@ test.describe('Classic Lab — Professional Regex Testing', () => {
     const replacePreview = page.getByLabel('Replaced output preview');
     await expect(replacePreview).toContainText('[Widget is 15 USD] and [Gadget is 40 USD].');
   });
+
+  test('updates both match inspector and replacement preview concurrently during live evaluation', async ({ page }) => {
+    // 1. Ensure live evaluation is ON (enabled by default)
+    const liveCheckbox = page.getByLabel(/Live evaluation/i);
+    await expect(liveCheckbox).toBeChecked();
+
+    // 2. Open Find & Replace panel
+    await page.getByRole('button', { name: 'Toggle Find and Replace' }).click();
+    await expect(page.getByText('Find & Replace Engine')).toBeVisible();
+
+    // 3. Set replacement template
+    const replaceInput = page.locator('#replace-template-input');
+    await replaceInput.fill('ITEM-$1');
+
+    // 4. Set pattern and test text
+    const patternInput = page.locator('#pattern-input');
+    const textArea = page.locator('#test-text-area');
+
+    await patternInput.fill('#(\\d+)');
+    await textArea.fill('Ticket #101 assigned, Ticket #202 resolved.');
+
+    // 5. Verify both Match Inspector and Replacement Preview update correctly
+    const replacePreview = page.getByLabel('Replaced output preview');
+    await expect(replacePreview).toContainText('Ticket ITEM-101 assigned, Ticket ITEM-202 resolved.');
+    await expect(page.getByText('Match #1')).toBeVisible();
+    await expect(page.getByText('Match #2')).toBeVisible();
+
+    // 6. Change pattern and input text rapidly while live evaluation is running
+    await patternInput.fill('Ticket #(\\d+)');
+    await textArea.fill('Urgent Ticket #999 pending review.');
+
+    // 7. Verify both update concurrently to the new results without stale collisions
+    await expect(replacePreview).toContainText('Urgent ITEM-999 pending review.');
+    await expect(page.getByText('Match #1')).toBeVisible();
+    await expect(page.getByText('Match #2')).not.toBeVisible();
+    await expect(page.locator('code', { hasText: 'Ticket #999' })).toBeVisible();
+  });
 });
