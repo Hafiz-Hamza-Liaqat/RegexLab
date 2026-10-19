@@ -40,7 +40,7 @@ RegexLab is purposefully designed around three connected workflows:
 
 Designed for everyday developer productivity, debugging, and experimentation without distractions:
 
-- **Pattern Editor:** Full-featured regex input with compiled expression preview (`/pattern/flags`), clear validation error messaging, debounced live evaluation toggle, and convenient copy actions.
+- **Pattern Editor:** Full-featured regex input with compiled expression preview (`/pattern/flags`), clear validation error messaging, debounced live evaluation toggle, convenient copy actions, a dedicated **Next Pattern** preset cycle button, and responsive **Run** execution feedback.
 - **Accessible Flag Controls:** Instant toggles for `g` (global), `i` (ignore case), `m` (multiline), `s` (dotAll), and `u` (unicode).
 - **Test-Text Workspace:** Multiline editor with word, character, and line counters, alongside split view or dedicated highlighted match view.
 - **Match Inspector:** Displays total matches, execution duration in milliseconds, and cards detailing:

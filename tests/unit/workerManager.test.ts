@@ -172,14 +172,14 @@ describe('RegexWorkerManager — Concurrency, Safety & Lifecycle', () => {
   });
 
   it('Ensures deterministic listener and timeout cleanup on rapid editing', async () => {
-    let listenerCount = 0;
+    let workerCount = 0;
 
     class MonitoredWorker {
       public onmessage: ((e: MessageEvent) => void) | null = null;
       public onerror: ((e: ErrorEvent) => void) | null = null;
 
       constructor() {
-        listenerCount++;
+        workerCount++;
       }
 
       postMessage(data: unknown) {
@@ -220,10 +220,106 @@ describe('RegexWorkerManager — Concurrency, Safety & Lifecycle', () => {
     }
     expect(results[9]?.status).toBe('success');
 
-    // Only one worker was spawned for the channel, no worker leaks
-    expect(listenerCount).toBe(1);
-
     // All pending requests settled; pending count is 0
+    expect(manager.getPendingCounts().match).toBe(0);
+    expect(workerCount).toBeGreaterThanOrEqual(1);
+  });
+
+  it('Worker terminates immediately on supersession to stop in-flight computation', async () => {
+    const mockTerminate1 = vi.fn();
+    let workerIndex = 0;
+
+    class TestSupersedeWorker {
+      public onmessage: ((e: MessageEvent) => void) | null = null;
+      public onerror: ((e: ErrorEvent) => void) | null = null;
+      private idx: number;
+
+      constructor() {
+        this.idx = ++workerIndex;
+      }
+
+      postMessage(data: unknown) {
+        const msg = data as { type?: string; payload: Parameters<typeof engine.executeRegex>[0] };
+        // First worker never replies (simulating long/infinite computation)
+        if (this.idx === 1) {
+          return;
+        }
+        // Second worker completes quickly
+        setTimeout(() => {
+          if (!this.onmessage) return;
+          const res = engine.executeRegex(msg.payload);
+          this.onmessage({ data: { type: 'MATCH_RESULT', payload: res } } as MessageEvent);
+        }, 5);
+      }
+
+      terminate() {
+        if (this.idx === 1) {
+          mockTerminate1();
+        }
+      }
+      addEventListener() {}
+      removeEventListener() {}
+    }
+
+    const manager = new RegexWorkerManager({
+      workerFactory: () => new TestSupersedeWorker() as unknown as Worker,
+    });
+
+    const p1 = manager.runMatch({
+      id: 'heavy-req-1',
+      pattern: 'heavy',
+      flags: 'g',
+      text: 'heavy text',
+    });
+
+    const p2 = manager.runMatch({
+      id: 'quick-req-2',
+      pattern: 'quick',
+      flags: 'g',
+      text: 'quick text',
+    });
+
+    const [r1, r2] = await Promise.all([p1, p2]);
+
+    // Worker 1 was terminated immediately upon supersession
+    expect(mockTerminate1).toHaveBeenCalled();
+    expect(r1.status).toBe('cancelled');
+    expect(r1.error).toContain('superseded');
+
+    // Worker 2 succeeded
+    expect(r2.status).toBe('success');
+    expect(r2.matches[0]?.value).toBe('quick');
+    expect(manager.getPendingCounts().match).toBe(0);
+  });
+
+  it('Synchronous postMessage() failure settles with an error and cleans up without hanging', async () => {
+    class FailingPostWorker {
+      public onmessage: ((e: MessageEvent) => void) | null = null;
+      public onerror: ((e: ErrorEvent) => void) | null = null;
+
+      postMessage() {
+        throw new Error('DataCloneError: object could not be cloned');
+      }
+
+      terminate() {}
+      addEventListener() {}
+      removeEventListener() {}
+    }
+
+    const manager = new RegexWorkerManager({
+      workerFactory: () => new FailingPostWorker() as unknown as Worker,
+    });
+
+    const result = await manager.runMatch({
+      id: 'fail-post-req',
+      pattern: 'test',
+      flags: 'g',
+      text: 'test',
+    });
+
+    expect(result.status).toBe('error');
+    expect(result.error).toContain('Failed to dispatch request to worker');
+    expect(result.error).toContain('DataCloneError');
     expect(manager.getPendingCounts().match).toBe(0);
   });
 

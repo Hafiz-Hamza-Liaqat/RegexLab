@@ -81,6 +81,19 @@ export const App: React.FC = () => {
   const latestMatchReqIdRef = useRef<string | null>(null);
   const latestReplaceReqIdRef = useRef<string | null>(null);
 
+  const [manualRunFeedback, setManualRunFeedback] = useState<string | null>(null);
+  const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showManualFeedback = useCallback((msg: string) => {
+    if (feedbackTimerRef.current) {
+      clearTimeout(feedbackTimerRef.current);
+    }
+    setManualRunFeedback(msg);
+    feedbackTimerRef.current = setTimeout(() => {
+      setManualRunFeedback(null);
+    }, 3500);
+  }, []);
+
   const flagsString = (Object.keys(flags) as (keyof RegexFlags)[])
     .filter((k) => flags[k])
     .join('');
@@ -88,55 +101,94 @@ export const App: React.FC = () => {
   /**
    * Executes regex matching using safe worker
    */
-  const handleExecuteRegex = useCallback(async () => {
-    const reqId = `req-${Date.now()}-${Math.random()}`;
-    latestMatchReqIdRef.current = reqId;
-    setMatchResult((prev) => ({ ...prev, status: 'running' }));
-    setMascotMood('scanning');
-    setMascotMessage('Dot is scanning the text!');
+  const handleExecuteRegex = useCallback(
+    async (isManualRun = false) => {
+      const reqId = `req-${Date.now()}-${Math.random()}`;
+      latestMatchReqIdRef.current = reqId;
+      setMatchResult((prev) => ({ ...prev, status: 'running' }));
+      setMascotMood('scanning');
+      setMascotMessage('Dot is scanning the text!');
 
-    const result = await defaultWorkerManager.runMatch({
-      id: reqId,
-      pattern,
-      flags: flagsString,
-      text: testText,
-    });
+      try {
+        const result = await defaultWorkerManager.runMatch({
+          id: reqId,
+          pattern,
+          flags: flagsString,
+          text: testText,
+        });
 
-    // Guard against superseded or stale responses
-    if (latestMatchReqIdRef.current !== reqId || result.status === 'cancelled') {
-      return;
-    }
-
-    setMatchResult(result);
-
-    if (result.status === 'success') {
-      setMascotMood('happy');
-      setMascotMessage(
-        result.totalMatches === 1
-          ? 'Found 1 match. Case closed!'
-          : `Found ${result.totalMatches} matches. Case closed!`
-      );
-
-      // Unlock first match achievement
-      setProgress((prev) => {
-        const { progress: p1 } = unlockAchievement(prev, 'first-match');
-        if (result.matches.some((m) => m.groups.length > 0)) {
-          const { progress: p2 } = unlockAchievement(p1, 'capture-expert');
-          return p2;
+        // Guard against superseded or stale responses
+        if (latestMatchReqIdRef.current !== reqId) {
+          return;
         }
-        return p1;
-      });
-    } else if (result.status === 'no-match') {
-      setMascotMood('confused');
-      setMascotMessage('No matches yet. Want to try a different pattern or flag?');
-    } else if (result.status === 'timeout') {
-      setMascotMood('confused');
-      setMascotMessage('Execution timed out! The worker was safely terminated to prevent freezing.');
-    } else if (result.status === 'error') {
-      setMascotMood('thinking');
-      setMascotMessage('Pattern error. Check your brackets or escape characters!');
-    }
-  }, [pattern, flagsString, testText]);
+
+        // If cancelled and this was the latest request, do not leave UI stuck in running
+        if (result.status === 'cancelled') {
+          setMatchResult((prev) => (prev.status === 'running' ? { ...prev, status: 'idle' } : prev));
+          return;
+        }
+
+        setMatchResult(result);
+
+        if (result.status === 'success') {
+          setMascotMood('happy');
+          const msg =
+            result.totalMatches === 1
+              ? 'Found 1 match. Case closed!'
+              : `Found ${result.totalMatches} matches. Case closed!`;
+          setMascotMessage(msg);
+          if (isManualRun) {
+            showManualFeedback(
+              result.totalMatches === 1 ? '1 match found' : `${result.totalMatches} matches found`
+            );
+          }
+
+          // Unlock first match achievement
+          setProgress((prev) => {
+            const { progress: p1 } = unlockAchievement(prev, 'first-match');
+            if (result.matches.some((m) => m.groups.length > 0)) {
+              const { progress: p2 } = unlockAchievement(p1, 'capture-expert');
+              return p2;
+            }
+            return p1;
+          });
+        } else if (result.status === 'no-match') {
+          setMascotMood('confused');
+          setMascotMessage('No matches yet. Want to try a different pattern or flag?');
+          if (isManualRun) {
+            showManualFeedback('No matches found');
+          }
+        } else if (result.status === 'timeout') {
+          setMascotMood('confused');
+          setMascotMessage('Execution timed out! The worker was safely terminated to prevent freezing.');
+          if (isManualRun) {
+            showManualFeedback('Execution timed out');
+          }
+        } else if (result.status === 'error') {
+          setMascotMood('thinking');
+          setMascotMessage('Pattern error. Check your brackets or escape characters!');
+          if (isManualRun) {
+            showManualFeedback('Pattern error');
+          }
+        }
+      } catch (err) {
+        if (latestMatchReqIdRef.current === reqId) {
+          setMatchResult({
+            id: reqId,
+            status: 'error',
+            matches: [],
+            totalMatches: 0,
+            executionTimeMs: 0,
+            error: err instanceof Error ? err.message : 'Execution failed.',
+          });
+          if (isManualRun) {
+            showManualFeedback('Execution failed');
+          }
+        }
+      }
+    },
+    [pattern, flagsString, testText, showManualFeedback]
+  );
 
   /**
    * Executes replacement
@@ -148,28 +200,87 @@ export const App: React.FC = () => {
     }
     const reqId = `rep-${Date.now()}-${Math.random()}`;
     latestReplaceReqIdRef.current = reqId;
-    const result = await defaultWorkerManager.runReplace({
-      id: reqId,
-      pattern,
-      flags: flagsString,
-      text: testText,
-      replacement: replacementTemplate,
-    });
 
-    // Guard against superseded or stale replacement responses
-    if (latestReplaceReqIdRef.current !== reqId || result.status === 'cancelled') {
-      return;
-    }
-
-    setReplaceResult(result);
-
-    if (result.status === 'success' && result.replacementCount > 0) {
-      setProgress((prev) => {
-        const { progress: p } = unlockAchievement(prev, 'replace-wizard');
-        return p;
+    try {
+      const result = await defaultWorkerManager.runReplace({
+        id: reqId,
+        pattern,
+        flags: flagsString,
+        text: testText,
+        replacement: replacementTemplate,
       });
+
+      // Guard against superseded or stale replacement responses
+      if (latestReplaceReqIdRef.current !== reqId || result.status === 'cancelled') {
+        return;
+      }
+
+      setReplaceResult(result);
+
+      if (result.status === 'success' && result.replacementCount > 0) {
+        setProgress((prev) => {
+          const { progress: p } = unlockAchievement(prev, 'replace-wizard');
+          return p;
+        });
+      }
+    } catch {
+      // Ignore
     }
   }, [pattern, flagsString, testText, replacementTemplate]);
+
+  /**
+   * Reliable manual Run flow: clears pending debounce, executes latest input, and confirms result
+   */
+  const handleRunNow = useCallback(async () => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+
+    const matchPromise = handleExecuteRegex(true);
+    const replacePromise = isFindReplaceOpen ? handleExecuteReplace() : Promise.resolve();
+    await Promise.allSettled([matchPromise, replacePromise]);
+  }, [handleExecuteRegex, handleExecuteReplace, isFindReplaceOpen]);
+
+  /**
+   * Rotates to the next preset pattern in PRESETS, updating inputs and flags consistently
+   */
+  const handleNextPattern = useCallback(() => {
+    const currentIndex = PRESETS.findIndex((p) => p.id === activePresetId);
+    const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % PRESETS.length;
+    const nextPreset = PRESETS[nextIndex]!;
+
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+
+    setActivePresetId(nextPreset.id);
+    setPattern(nextPreset.pattern);
+    const newFlags: RegexFlags = {
+      g: nextPreset.flags.includes('g'),
+      i: nextPreset.flags.includes('i'),
+      m: nextPreset.flags.includes('m'),
+      s: nextPreset.flags.includes('s'),
+      u: nextPreset.flags.includes('u'),
+    };
+    setFlags(newFlags);
+    setTestText(nextPreset.text);
+    setActiveMatchIndex(undefined);
+    setManualRunFeedback(null);
+
+    if (!isLive) {
+      setMatchResult({
+        id: `idle-${Date.now()}`,
+        status: 'idle',
+        matches: [],
+        totalMatches: 0,
+        executionTimeMs: 0,
+      });
+      setMascotMood('idle');
+      setMascotMessage(`Loaded ${nextPreset.name}. Press Run to evaluate.`);
+    }
+  }, [activePresetId, isLive]);
 
   // Debounced live evaluation
   useEffect(() => {
@@ -180,7 +291,7 @@ export const App: React.FC = () => {
     }
 
     debounceTimerRef.current = setTimeout(() => {
-      handleExecuteRegex();
+      handleExecuteRegex(false);
       if (isFindReplaceOpen) {
         handleExecuteReplace();
       }
@@ -207,18 +318,22 @@ export const App: React.FC = () => {
     setFlags(newFlags);
     setTestText(preset.text);
     setActiveMatchIndex(undefined);
+    setManualRunFeedback(null);
   };
 
   const handleFlagToggle = (flagKey: keyof RegexFlags) => {
     setFlags((prev) => ({ ...prev, [flagKey]: !prev[flagKey] }));
+    setManualRunFeedback(null);
   };
 
   const handleClearPattern = () => {
     setPattern('');
     setActiveMatchIndex(undefined);
+    setManualRunFeedback(null);
   };
 
   const handleReset = () => {
+    setManualRunFeedback(null);
     handleSelectPreset(initialPreset);
   };
 
@@ -290,12 +405,14 @@ export const App: React.FC = () => {
               status={matchResult.status}
               errorMessage={matchResult.status === 'error' ? matchResult.error : undefined}
               isLive={isLive}
-              onPatternChange={(p) => setPattern(p)}
-              onFlagToggle={handleFlagToggle}
-              onRun={() => {
-                handleExecuteRegex();
-                if (isFindReplaceOpen) handleExecuteReplace();
+              onPatternChange={(p) => {
+                setPattern(p);
+                setManualRunFeedback(null);
               }}
+              onFlagToggle={handleFlagToggle}
+              onRun={handleRunNow}
+              onNextPattern={handleNextPattern}
+              manualRunFeedback={manualRunFeedback}
               onClear={handleClearPattern}
               onReset={handleReset}
               onToggleLive={() => setIsLive((prev) => !prev)}

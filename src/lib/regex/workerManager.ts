@@ -160,18 +160,21 @@ class IsolatedWorkerClient<TRequest extends { id: string; timeoutMs?: number }, 
 
   /**
    * Executes a request asynchronously on the worker channel.
-   * If a previous request is still in flight on this channel, it is superseded immediately.
+   * If a previous request is still in flight on this channel, it is superseded immediately,
+   * its busy worker is stopped to abort execution, and a fresh worker is provisioned.
    */
   public run(request: TRequest): Promise<TResult> {
     const timeoutMs = request.timeoutMs ?? this.config.options.timeoutMs ?? DEFAULT_EXECUTION_TIMEOUT_MS;
 
-    // Supersede any active request on this channel cleanly
+    // Supersede any active request on this channel cleanly and stop busy worker computation
     if (this.currentActiveId && this.currentActiveId !== request.id) {
       const prevId = this.currentActiveId;
       this.settleRequest(
         prevId,
         this.config.makeCancelledResult(prevId, 'Request superseded by a newer request.')
       );
+      // Terminate the busy worker thread immediately to stop execution of the abandoned regex
+      this.terminateInternalWorker();
     }
 
     this.currentActiveId = request.id;
@@ -181,8 +184,14 @@ class IsolatedWorkerClient<TRequest extends { id: string; timeoutMs?: number }, 
       return new Promise<TResult>((resolve) => {
         try {
           const result = this.config.executeDirectly(request);
+          if (this.currentActiveId === request.id) {
+            this.currentActiveId = null;
+          }
           resolve(result);
         } catch (err) {
+          if (this.currentActiveId === request.id) {
+            this.currentActiveId = null;
+          }
           resolve(this.config.makeErrorResult(request.id, err instanceof Error ? err.message : 'Execution failed'));
         }
       });
@@ -192,6 +201,7 @@ class IsolatedWorkerClient<TRequest extends { id: string; timeoutMs?: number }, 
 
     // Production policy: NEVER execute untrusted regex synchronously on UI thread if Worker is unavailable
     if (!worker) {
+      this.currentActiveId = null;
       return Promise.resolve(
         this.config.makeErrorResult(
           request.id,
@@ -218,10 +228,27 @@ class IsolatedWorkerClient<TRequest extends { id: string; timeoutMs?: number }, 
         settled: false,
       });
 
-      worker.postMessage({
-        type: this.config.actionType,
-        payload: request,
-      });
+      // Synchronously catch any postMessage dispatch failure to prevent unhandled rejections
+      try {
+        worker.postMessage({
+          type: this.config.actionType,
+          payload: request,
+        });
+      } catch (postErr) {
+        if (timer) {
+          clearTimeout(timer);
+        }
+        this.pendingRequests.delete(request.id);
+        if (this.currentActiveId === request.id) {
+          this.currentActiveId = null;
+        }
+        resolve(
+          this.config.makeErrorResult(
+            request.id,
+            `Failed to dispatch request to worker: ${postErr instanceof Error ? postErr.message : String(postErr)}`
+          )
+        );
+      }
     });
   }
 

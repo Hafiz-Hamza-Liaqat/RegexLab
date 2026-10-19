@@ -8,6 +8,7 @@ import {
   AlertCircle,
   Clock,
   Sparkles,
+  Shuffle,
 } from 'lucide-react';
 import type { RegexFlags, RegexRunStatus } from '../../types/regex.ts';
 
@@ -17,9 +18,11 @@ interface PatternEditorProps {
   status: RegexRunStatus;
   errorMessage?: string;
   isLive: boolean;
+  manualRunFeedback?: string | null;
   onPatternChange: (pattern: string) => void;
   onFlagToggle: (flag: keyof RegexFlags) => void;
   onRun: () => void;
+  onNextPattern: () => void;
   onClear: () => void;
   onReset: () => void;
   onToggleLive: () => void;
@@ -41,9 +44,11 @@ export const PatternEditor: React.FC<PatternEditorProps> = ({
   status,
   errorMessage,
   isLive,
+  manualRunFeedback,
   onPatternChange,
   onFlagToggle,
   onRun,
+  onNextPattern,
   onClear,
   onReset,
   onToggleLive,
@@ -191,6 +196,18 @@ export const PatternEditor: React.FC<PatternEditorProps> = ({
             )}
           </button>
 
+          {/* Next Pattern button */}
+          <button
+            type="button"
+            onClick={onNextPattern}
+            className="btn-secondary"
+            title="Load the next regex pattern with its sample text and flags."
+            aria-label="Load the next regex pattern with its sample text and flags."
+          >
+            <Shuffle className="w-3.5 h-3.5" />
+            <span>Next Pattern</span>
+          </button>
+
           {/* Clear pattern */}
           <button
             type="button"
@@ -212,6 +229,17 @@ export const PatternEditor: React.FC<PatternEditorProps> = ({
             <RotateCcw className="w-3.5 h-3.5" />
             <span>Reset</span>
           </button>
+
+          {/* Manual Run feedback message */}
+          {manualRunFeedback && (
+            <span
+              role="status"
+              className="text-xs font-semibold px-2.5 py-1 rounded-md bg-indigo-50 dark:bg-indigo-950/70 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 flex items-center gap-1.5 transition-all shadow-xs"
+            >
+              <Check className="w-3.5 h-3.5 text-indigo-500" />
+              <span>{manualRunFeedback}</span>
+            </span>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
