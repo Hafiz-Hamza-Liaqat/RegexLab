@@ -34,6 +34,8 @@ const DEFAULT_FLAGS: RegexFlags = {
   u: false,
 };
 
+const INITIAL_PRESET = PRESETS[0]!;
+
 export const App: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
   const { prefersReduced: prefersReducedMotion, toggleReducedMotion } = useReducedMotion();
@@ -41,19 +43,17 @@ export const App: React.FC = () => {
   const [mode, setMode] = useState<AppMode>('classic');
   const [activePresetId, setActivePresetId] = useState<string>('numbers');
 
-  const initialPreset = PRESETS.find((p) => p.id === 'numbers') || PRESETS[0]!;
-
-  const [pattern, setPattern] = useState<string>(initialPreset.pattern);
+  const [pattern, setPattern] = useState<string>(INITIAL_PRESET.pattern);
   const [flags, setFlags] = useState<RegexFlags>(() => {
     const f: RegexFlags = { ...DEFAULT_FLAGS };
-    f.g = initialPreset.flags.includes('g');
-    f.i = initialPreset.flags.includes('i');
-    f.m = initialPreset.flags.includes('m');
-    f.s = initialPreset.flags.includes('s');
-    f.u = initialPreset.flags.includes('u');
+    f.g = INITIAL_PRESET.flags.includes('g');
+    f.i = INITIAL_PRESET.flags.includes('i');
+    f.m = INITIAL_PRESET.flags.includes('m');
+    f.s = INITIAL_PRESET.flags.includes('s');
+    f.u = INITIAL_PRESET.flags.includes('u');
     return f;
   });
-  const [testText, setTestText] = useState<string>(initialPreset.text);
+  const [testText, setTestText] = useState<string>(INITIAL_PRESET.text);
 
   const [isLive, setIsLive] = useState<boolean>(true);
   const [isFindReplaceOpen, setIsFindReplaceOpen] = useState<boolean>(false);
@@ -243,33 +243,41 @@ export const App: React.FC = () => {
   }, [handleExecuteRegex, handleExecuteReplace, isFindReplaceOpen]);
 
   /**
-   * Rotates to the next preset pattern in PRESETS, updating inputs and flags consistently
+   * Stages a preset pattern and test text, invalidating older worker requests and clearing stale results
    */
-  const handleNextPattern = useCallback(() => {
-    const currentIndex = PRESETS.findIndex((p) => p.id === activePresetId);
-    const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % PRESETS.length;
-    const nextPreset = PRESETS[nextIndex]!;
+  const stagePreset = useCallback(
+    (preset: Preset) => {
+      // 1. Invalidate previous match and replacement request IDs so late responses are ignored
+      latestMatchReqIdRef.current = '';
+      latestReplaceReqIdRef.current = '';
 
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-      debounceTimerRef.current = null;
-    }
+      // 2. Cancel outstanding match and replacement requests through worker manager APIs
+      defaultWorkerManager.cancelMatch();
+      defaultWorkerManager.cancelReplace();
 
-    setActivePresetId(nextPreset.id);
-    setPattern(nextPreset.pattern);
-    const newFlags: RegexFlags = {
-      g: nextPreset.flags.includes('g'),
-      i: nextPreset.flags.includes('i'),
-      m: nextPreset.flags.includes('m'),
-      s: nextPreset.flags.includes('s'),
-      u: nextPreset.flags.includes('u'),
-    };
-    setFlags(newFlags);
-    setTestText(nextPreset.text);
-    setActiveMatchIndex(undefined);
-    setManualRunFeedback(null);
+      // 3. Clear any pending debounce timer
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
+      }
 
-    if (!isLive) {
+      // 4. Update preset, pattern, flags, and sample text
+      setActivePresetId(preset.id);
+      setPattern(preset.pattern);
+      const newFlags: RegexFlags = {
+        g: preset.flags.includes('g'),
+        i: preset.flags.includes('i'),
+        m: preset.flags.includes('m'),
+        s: preset.flags.includes('s'),
+        u: preset.flags.includes('u'),
+      };
+      setFlags(newFlags);
+      setTestText(preset.text);
+
+      // 5. Clear stale match results, match focus, previous error state, manual feedback, and replacement preview
+      setActiveMatchIndex(undefined);
+      setManualRunFeedback(null);
+      setReplaceResult(null);
       setMatchResult({
         id: `idle-${Date.now()}`,
         status: 'idle',
@@ -278,9 +286,24 @@ export const App: React.FC = () => {
         executionTimeMs: 0,
       });
       setMascotMood('idle');
-      setMascotMessage(`Loaded ${nextPreset.name}. Press Run to evaluate.`);
-    }
-  }, [activePresetId, isLive]);
+      if (!isLive) {
+        setMascotMessage(`Loaded ${preset.name}. Press Run to evaluate.`);
+      } else {
+        setMascotMessage(`Loaded ${preset.name}. Evaluating matches...`);
+      }
+    },
+    [isLive]
+  );
+
+  /**
+   * Rotates to the next preset pattern in PRESETS, updating inputs and flags consistently
+   */
+  const handleNextPattern = useCallback(() => {
+    const currentIndex = PRESETS.findIndex((p) => p.id === activePresetId);
+    const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % PRESETS.length;
+    const nextPreset = PRESETS[nextIndex]!;
+    stagePreset(nextPreset);
+  }, [activePresetId, stagePreset]);
 
   // Debounced live evaluation
   useEffect(() => {
@@ -305,37 +328,46 @@ export const App: React.FC = () => {
   }, [pattern, flags, testText, isLive, isFindReplaceOpen, replacementTemplate, handleExecuteRegex, handleExecuteReplace]);
 
   // Preset loading handler
-  const handleSelectPreset = (preset: Preset) => {
-    setActivePresetId(preset.id);
-    setPattern(preset.pattern);
-    const newFlags: RegexFlags = {
-      g: preset.flags.includes('g'),
-      i: preset.flags.includes('i'),
-      m: preset.flags.includes('m'),
-      s: preset.flags.includes('s'),
-      u: preset.flags.includes('u'),
-    };
-    setFlags(newFlags);
-    setTestText(preset.text);
-    setActiveMatchIndex(undefined);
-    setManualRunFeedback(null);
-  };
+  const handleSelectPreset = useCallback(
+    (preset: Preset) => {
+      stagePreset(preset);
+    },
+    [stagePreset]
+  );
 
   const handleFlagToggle = (flagKey: keyof RegexFlags) => {
     setFlags((prev) => ({ ...prev, [flagKey]: !prev[flagKey] }));
     setManualRunFeedback(null);
   };
 
-  const handleClearPattern = () => {
+  const handleClearPattern = useCallback(() => {
+    latestMatchReqIdRef.current = '';
+    latestReplaceReqIdRef.current = '';
+    defaultWorkerManager.cancelMatch();
+    defaultWorkerManager.cancelReplace();
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
     setPattern('');
     setActiveMatchIndex(undefined);
     setManualRunFeedback(null);
-  };
+    setReplaceResult(null);
+    setMatchResult({
+      id: `idle-${Date.now()}`,
+      status: 'idle',
+      matches: [],
+      totalMatches: 0,
+      executionTimeMs: 0,
+    });
+    setMascotMood('idle');
+    setMascotMessage('Pattern cleared. Enter a regex or load a preset!');
+  }, []);
 
-  const handleReset = () => {
+  const handleReset = useCallback(() => {
     setManualRunFeedback(null);
-    handleSelectPreset(initialPreset);
-  };
+    stagePreset(INITIAL_PRESET);
+  }, [stagePreset]);
 
   const handleCopyMatches = async () => {
     const matchStrings = matchResult.matches.map((m) => m.value).join('\n');

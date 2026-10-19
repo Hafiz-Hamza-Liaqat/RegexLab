@@ -235,14 +235,11 @@ class IsolatedWorkerClient<TRequest extends { id: string; timeoutMs?: number }, 
           payload: request,
         });
       } catch (postErr) {
-        if (timer) {
-          clearTimeout(timer);
-        }
-        this.pendingRequests.delete(request.id);
-        if (this.currentActiveId === request.id) {
-          this.currentActiveId = null;
-        }
-        resolve(
+        // Terminate and reset the failed worker so subsequent requests provision a fresh worker
+        this.terminateInternalWorker();
+        // Clear request timeout and pending state exactly once
+        this.settleRequest(
+          request.id,
           this.config.makeErrorResult(
             request.id,
             `Failed to dispatch request to worker: ${postErr instanceof Error ? postErr.message : String(postErr)}`
@@ -274,12 +271,21 @@ class IsolatedWorkerClient<TRequest extends { id: string; timeoutMs?: number }, 
   }
 
   /**
-   * Explicitly cancels a specific request or the active request.
+   * Explicitly cancels a specific request or all outstanding requests.
    */
   public cancel(id?: string): void {
-    const targetId = id ?? this.currentActiveId;
-    if (targetId && this.pendingRequests.has(targetId)) {
-      this.settleRequest(targetId, this.config.makeCancelledResult(targetId, 'Request cancelled explicitly.'));
+    if (id) {
+      if (this.pendingRequests.has(id)) {
+        this.settleRequest(id, this.config.makeCancelledResult(id, 'Request cancelled explicitly.'));
+        this.terminateInternalWorker();
+      }
+    } else {
+      const pendingIds = Array.from(this.pendingRequests.keys());
+      for (const reqId of pendingIds) {
+        this.settleRequest(reqId, this.config.makeCancelledResult(reqId, 'Request cancelled explicitly.'));
+      }
+      this.terminateInternalWorker();
+      this.currentActiveId = null;
     }
   }
 

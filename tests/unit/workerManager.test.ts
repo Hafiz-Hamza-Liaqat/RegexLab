@@ -292,13 +292,38 @@ describe('RegexWorkerManager — Concurrency, Safety & Lifecycle', () => {
     expect(manager.getPendingCounts().match).toBe(0);
   });
 
-  it('Synchronous postMessage() failure settles with an error and cleans up without hanging', async () => {
-    class FailingPostWorker {
+  it('Synchronous postMessage() failure terminates worker, settles with error, and subsequent request succeeds on fresh worker', async () => {
+    const mockTerminate1 = vi.fn();
+    let workerCreationIndex = 0;
+
+    class FailingFirstWorker {
       public onmessage: ((e: MessageEvent) => void) | null = null;
       public onerror: ((e: ErrorEvent) => void) | null = null;
 
       postMessage() {
         throw new Error('DataCloneError: object could not be cloned');
+      }
+
+      terminate() {
+        mockTerminate1();
+      }
+      addEventListener() {}
+      removeEventListener() {}
+    }
+
+    class WorkingSecondWorker {
+      public onmessage: ((e: MessageEvent) => void) | null = null;
+      public onerror: ((e: ErrorEvent) => void) | null = null;
+
+      postMessage(data: unknown) {
+        const msg = data as { type?: string; payload: Parameters<typeof engine.executeRegex>[0] };
+        setTimeout(() => {
+          if (!this.onmessage) return;
+          if (msg?.type === 'MATCH') {
+            const res = engine.executeRegex(msg.payload);
+            this.onmessage({ data: { type: 'MATCH_RESULT', payload: res } } as MessageEvent);
+          }
+        }, 5);
       }
 
       terminate() {}
@@ -307,19 +332,42 @@ describe('RegexWorkerManager — Concurrency, Safety & Lifecycle', () => {
     }
 
     const manager = new RegexWorkerManager({
-      workerFactory: () => new FailingPostWorker() as unknown as Worker,
+      workerFactory: () => {
+        workerCreationIndex++;
+        if (workerCreationIndex === 1) {
+          return new FailingFirstWorker() as unknown as Worker;
+        }
+        return new WorkingSecondWorker() as unknown as Worker;
+      },
     });
 
-    const result = await manager.runMatch({
+    // 1. Dispatch first request which fails synchronously in postMessage
+    const result1 = await manager.runMatch({
       id: 'fail-post-req',
       pattern: 'test',
       flags: 'g',
       text: 'test',
     });
 
-    expect(result.status).toBe('error');
-    expect(result.error).toContain('Failed to dispatch request to worker');
-    expect(result.error).toContain('DataCloneError');
+    // Verify error result, termination of failed worker, and pending count returns to 0
+    expect(result1.status).toBe('error');
+    expect(result1.error).toContain('Failed to dispatch request to worker');
+    expect(result1.error).toContain('DataCloneError');
+    expect(mockTerminate1).toHaveBeenCalledTimes(1);
+    expect(manager.getPendingCounts().match).toBe(0);
+
+    // 2. Dispatch subsequent request; manager must provision a fresh worker that succeeds
+    const result2 = await manager.runMatch({
+      id: 'recover-post-req',
+      pattern: 'hello',
+      flags: 'g',
+      text: 'hello world',
+    });
+
+    expect(result2.status).toBe('success');
+    expect(result2.matches).toHaveLength(1);
+    expect(result2.matches[0]?.value).toBe('hello');
+    expect(workerCreationIndex).toBe(2);
     expect(manager.getPendingCounts().match).toBe(0);
   });
 

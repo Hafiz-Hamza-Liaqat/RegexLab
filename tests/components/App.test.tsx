@@ -1,7 +1,8 @@
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
-import { describe, it, expect, beforeEach } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { App } from '../../src/App.tsx';
+import { defaultWorkerManager } from '../../src/lib/regex/workerManager.ts';
 
 describe('App Component', () => {
   beforeEach(() => {
@@ -100,4 +101,129 @@ describe('App Component', () => {
     fireEvent.click(darkBtn);
     expect(document.documentElement.classList.contains('dark')).toBe(true);
   });
+
+  it('prevents an older in-flight result from overwriting state after Next Pattern is clicked with Live evaluation disabled, clears replacement preview, and subsequent manual Run works', async () => {
+    render(<App />);
+
+    // 1. Disable Live evaluation
+    const liveCheckbox = screen.getByLabelText(/Live evaluation/i);
+    fireEvent.click(liveCheckbox);
+    expect(liveCheckbox).not.toBeChecked();
+
+    // 2. Open Find & Replace and enter replacement template
+    const toggleReplaceBtn = screen.getByRole('button', { name: 'Toggle Find and Replace' });
+    fireEvent.click(toggleReplaceBtn);
+    const replaceInput = screen.getByPlaceholderText(/e\.g\. \[\$1\]/i);
+    fireEvent.change(replaceInput, { target: { value: '[$&]' } });
+
+    // 3. Spy on defaultWorkerManager.runMatch and runReplace to create a controllable in-flight request
+    let resolveStaleMatch: ((val: unknown) => void) | null = null;
+    let resolveStaleReplace: ((val: unknown) => void) | null = null;
+    let matchCallCount = 0;
+    let replaceCallCount = 0;
+
+    const origRunMatch = defaultWorkerManager.runMatch.bind(defaultWorkerManager);
+    const origRunReplace = defaultWorkerManager.runReplace.bind(defaultWorkerManager);
+
+    vi.spyOn(defaultWorkerManager, 'runMatch').mockImplementation(async (req) => {
+      matchCallCount++;
+      if (matchCallCount === 1) {
+        // Hold first request in flight indefinitely until we manually resolve it
+        return new Promise((resolve) => {
+          resolveStaleMatch = resolve;
+        });
+      }
+      return origRunMatch(req);
+    });
+
+    vi.spyOn(defaultWorkerManager, 'runReplace').mockImplementation(async (req) => {
+      replaceCallCount++;
+      if (replaceCallCount === 1) {
+        // Hold first replacement in flight
+        return new Promise((resolve) => {
+          resolveStaleReplace = resolve;
+        });
+      }
+      return origRunReplace(req);
+    });
+
+    // 4. Click Run to start the in-flight requests for Preset 1 (Numbers)
+    const runBtn = screen.getByRole('button', { name: 'Run regular expression' });
+    fireEvent.click(runBtn);
+
+    expect(matchCallCount).toBe(1);
+    expect(replaceCallCount).toBe(1);
+
+    // 5. While the requests are in-flight, click Next Pattern
+    const nextBtn = screen.getByRole('button', { name: /Load the next regex pattern/i });
+    fireEvent.click(nextBtn);
+
+    // Verify pattern and sample text updated to Preset 2 (Words)
+    const patternInput = screen.getByPlaceholderText(/e\.g\. \[A-Z\]\\d\{3\}/i);
+    expect(patternInput).toHaveValue('\\b[a-zA-Z]{4,}\\b');
+
+    // Verify match cards are empty / idle
+    expect(screen.queryByText('Match #1')).not.toBeInTheDocument();
+    expect(screen.getByText('0 matches')).toBeInTheDocument();
+
+    // Verify replacement preview is cleared / reset to placeholder
+    expect(screen.getByText('Enter a pattern to preview replacement.')).toBeInTheDocument();
+    expect(screen.getByText('0 replacements')).toBeInTheDocument();
+
+    // 6. Now, resolve the delayed first match and replace requests with stale results from Preset 1
+    resolveStaleMatch?.({
+      id: 'stale-match-id',
+      status: 'success',
+      matches: [
+        {
+          index: 1,
+          value: '12',
+          start: 5,
+          end: 7,
+          groups: [],
+          inputContext: { prefix: 'Room ', suffix: ', floor' },
+        },
+      ],
+      totalMatches: 1,
+      executionTimeMs: 10,
+    });
+
+    resolveStaleReplace?.({
+      id: 'stale-replace-id',
+      status: 'success',
+      resultText: 'Room [12], floor [4]...',
+      replacementCount: 2,
+      executionTimeMs: 10,
+    });
+
+    // Wait a tick to allow any resolved promises to flush
+    await new Promise((r) => setTimeout(r, 50));
+
+    // Stale result MUST NOT overwrite the state:
+    // Pattern is still Preset 2
+    expect(patternInput).toHaveValue('\\b[a-zA-Z]{4,}\\b');
+    // Match results remain 0 matches and no Match #1
+    expect(screen.queryByText('Match #1')).not.toBeInTheDocument();
+    expect(screen.getByText('0 matches')).toBeInTheDocument();
+    // Replacement preview remains cleared / placeholder
+    expect(screen.getByText('Enter a pattern to preview replacement.')).toBeInTheDocument();
+    expect(screen.getByText('0 replacements')).toBeInTheDocument();
+    expect(screen.queryByText(/Room \[12\]/)).not.toBeInTheDocument();
+
+    // 7. Click Run manually to evaluate the staged Preset 2
+    fireEvent.click(runBtn);
+
+    // Verify that the new execution succeeds and displays matches for Preset 2
+    await waitFor(() => {
+      expect(screen.getByText('Match #1')).toBeInTheDocument();
+    });
+    expect(screen.getAllByText('quick').length).toBeGreaterThanOrEqual(1);
+
+    // Verify replacement preview now appears for Preset 2
+    await waitFor(() => {
+      expect(screen.queryByText('Enter a pattern to preview replacement.')).not.toBeInTheDocument();
+    });
+    expect(screen.getByLabelText('Replaced output preview')).toHaveTextContent(/\[quick\]/);
+  });
 });
+
