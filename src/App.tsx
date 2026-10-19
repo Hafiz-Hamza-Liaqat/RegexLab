@@ -335,9 +335,28 @@ export const App: React.FC = () => {
     [stagePreset]
   );
 
+  const invalidateStaleResultsIfManual = useCallback(() => {
+    if (!isLive) {
+      latestMatchReqIdRef.current = null;
+      latestReplaceReqIdRef.current = null;
+      defaultWorkerManager.cancelMatch();
+      defaultWorkerManager.cancelReplace();
+      setMatchResult({
+        id: `idle-${Date.now()}`,
+        status: 'idle',
+        matches: [],
+        totalMatches: 0,
+        executionTimeMs: 0,
+      });
+      setReplaceResult(null);
+      setActiveMatchIndex(undefined);
+    }
+  }, [isLive]);
+
   const handleFlagToggle = (flagKey: keyof RegexFlags) => {
     setFlags((prev) => ({ ...prev, [flagKey]: !prev[flagKey] }));
     setManualRunFeedback(null);
+    invalidateStaleResultsIfManual();
   };
 
   const handleClearPattern = useCallback(() => {
@@ -440,6 +459,7 @@ export const App: React.FC = () => {
               onPatternChange={(p) => {
                 setPattern(p);
                 setManualRunFeedback(null);
+                invalidateStaleResultsIfManual();
               }}
               onFlagToggle={handleFlagToggle}
               onRun={handleRunNow}
@@ -477,7 +497,10 @@ export const App: React.FC = () => {
               text={testText}
               matches={matchResult.matches}
               activeMatchIndex={activeMatchIndex}
-              onTextChange={(val) => setTestText(val)}
+              onTextChange={(val) => {
+                setTestText(val);
+                invalidateStaleResultsIfManual();
+              }}
               onClearText={() => setTestText('')}
             />
 

@@ -171,6 +171,9 @@ Genuine screenshots captured from the live running application:
 ### 6. Detective Mascot & Achievements Collection
 ![Mascot and Achievements](docs/screenshots/06-mascot-and-achievements.png)
 
+### 7. Motion Effects — Progressive Animated Replay
+![Motion Effects enabled during progressive Animated Replay](docs/screenshots/07-motion-effects-enabled.png)
+
 ---
 
 ## Getting Started & Local Development

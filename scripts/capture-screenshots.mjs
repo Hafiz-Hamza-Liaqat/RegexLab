@@ -1,3 +1,4 @@
+/* global document */
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -227,7 +228,84 @@ async function run() {
       await context.close();
     }
 
-    console.log('✓ All 6 screenshots captured successfully in docs/screenshots/');
+    // 7. Motion Effects & Progressive Animated Replay
+    console.log('Capturing 07-motion-effects-enabled.png...');
+    {
+      const context = await browser.newContext({
+        viewport: { width: 1440, height: 950 },
+        deviceScaleFactor: 1,
+        colorScheme: 'dark',
+        reducedMotion: 'no-preference',
+      });
+      try {
+        const page = await context.newPage();
+
+        // Ensure Motion Effects are explicitly enabled in isolated context
+        await page.addInitScript(() => {
+          localStorage.setItem('regexlab_reduced_motion', 'false');
+        });
+
+        // 1. Open app and wait for initial match results
+        await page.goto(baseUrl);
+        await page.getByText('Match #1').waitFor({ state: 'visible' });
+
+        // 2. Verify header Motion Effects toggle has aria-pressed="true" and root has data-regexlab-motion="full"
+        const motionToggle = page.getByTestId('motion-toggle');
+        await motionToggle.waitFor({ state: 'visible' });
+        const ariaPressed = await motionToggle.getAttribute('aria-pressed');
+        if (ariaPressed !== 'true') {
+          throw new Error(`Expected motion toggle aria-pressed to be "true", got "${ariaPressed}"`);
+        }
+
+        const rootMotionAttr = await page.evaluate(() =>
+          document.documentElement.getAttribute('data-regexlab-motion')
+        );
+        if (rootMotionAttr !== 'full') {
+          throw new Error(
+            `Expected documentElement data-regexlab-motion to be "full", got "${rootMotionAttr}"`
+          );
+        }
+
+        // 3. Open Animated Replay and wait for canvas
+        await page.getByRole('tab', { name: /Animated Replay/i }).click();
+        await page.getByText('Live Replay Canvas').waitFor({ state: 'visible' });
+
+        // 4. Click Restart to begin progressive replay
+        const restartBtn = page.getByRole('button', { name: 'Restart' });
+        await restartBtn.waitFor({ state: 'visible' });
+        await restartBtn.click();
+
+        // 5. Wait for .replay-scanner-line element to become visible during active animation
+        const scannerLine = page.locator('.replay-scanner-line');
+        await scannerLine.waitFor({ state: 'visible', timeout: 5000 });
+
+        // 6. Assert UI conditions before capture
+        const isScannerVisible = await scannerLine.isVisible();
+        if (!isScannerVisible) {
+          throw new Error('Scanner line is not visible during active progressive replay.');
+        }
+
+        const isMotionToggleVisible = await motionToggle.isVisible();
+        if (!isMotionToggleVisible) {
+          throw new Error('Motion effects toggle is not visible in the header.');
+        }
+
+        const isControlsVisible = await restartBtn.isVisible();
+        if (!isControlsVisible) {
+          throw new Error('Replay controls are not visible.');
+        }
+
+        // Capture screenshot of live running replay with active scanner and motion toggle enabled
+        await page.screenshot({
+          path: path.join(outDir, '07-motion-effects-enabled.png'),
+          fullPage: false,
+        });
+      } finally {
+        await context.close();
+      }
+    }
+
+    console.log('✓ All 7 screenshots captured successfully in docs/screenshots/');
   } finally {
     if (browser) await browser.close();
     await server.close();
