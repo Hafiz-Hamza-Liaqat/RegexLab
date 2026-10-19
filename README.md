@@ -59,7 +59,7 @@ RegexLab's defining feature is an authentic, step-by-step match replay engine:
 - **Scanning Cursor:** Sweeps across the test text to visualize how the regex engine discovers matches.
 - **Progressive Highlight & Card Stream:** Highlights each match with a subtle glow transition while synchronously revealing corresponding match cards, offsets, and capture groups.
 - **Replay Controls:** Play, pause, restart, step forward (next match), step backward (prev match), speed adjustment (`0.5×`, `1×`, `2×`), and "Show All Matches" for instant reveals.
-- **Accessibility & Motion Preference:** Full support for `prefers-reduced-motion` and a manual reduced-motion toggle that immediately bypasses animations.
+- **Accessibility & Motion Control:** Full support for system-level `prefers-reduced-motion` with an interactive top-right **Motion Effects** toggle. Enables explicit overriding of OS settings, restoring progressive scanning animations and transitions even when the operating system requests reduced motion.
 
 ### 3. Regex Arcade — Learn by Playing
 
@@ -217,7 +217,7 @@ npm run check
 This runs:
 1. `npm run lint` — Oxlint and ESLint checks (0 errors, 0 warnings).
 2. `npm run typecheck` — TypeScript strict typecheck (`tsc -b`).
-3. `npm run test:run` — Vitest unit & component test suite (63 passing tests).
+3. `npm run test:run` — Vitest unit & component test suite (71 passing tests across 8 test suites).
 
 ### Playwright End-to-End Tests
 
@@ -225,14 +225,14 @@ This runs:
 npm run test:e2e
 ```
 
-Executes 28 comprehensive browser automation tests covering:
+Executes 29 comprehensive browser automation tests covering:
 - Normal and edge-case regex matching
 - Capture groups and named groups inspection
 - Flag toggling and presets
 - Find & Replace transformations
 - Replay controls (play, pause, next, prev, speed, reveal all)
 - Arcade mission solving, idempotent rewards, hint progression
-- Theme and reduced-motion toggling
+- Theme and Motion Effects / reduced-motion toggling with OS preference override
 - Viewport layouts at 375px, 768px, 1024px, and 1440px with zero horizontal overflow
 
 ### Build Verification for GitHub Pages

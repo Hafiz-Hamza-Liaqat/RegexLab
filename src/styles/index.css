@@ -20,16 +20,30 @@ body {
   font-family: var(--font-sans);
 }
 
+/* Motion effects control:
+   - Apply reduced motion if user explicitly requested "reduced"
+   - OR if the OS prefers reduced motion and the user has not chosen "full"
+*/
+:root[data-regexlab-motion="reduced"] *,
+:root[data-regexlab-motion="reduced"] *::before,
+:root[data-regexlab-motion="reduced"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
+  :root:not([data-regexlab-motion="full"]) *,
+  :root:not([data-regexlab-motion="full"]) *::before,
+  :root:not([data-regexlab-motion="full"]) *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
 }
+
 
 /* Custom interactive button styles */
 .btn-primary {

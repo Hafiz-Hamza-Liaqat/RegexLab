@@ -6,7 +6,8 @@ import {
   FlaskConical,
   Sun,
   Moon,
-  Activity,
+  Zap,
+  ZapOff,
   Replace,
 } from 'lucide-react';
 import type { Theme } from '../hooks/useTheme.ts';
@@ -170,21 +171,33 @@ export const Header: React.FC<HeaderProps> = ({
               <span>{totalXp} XP</span>
             </div>
 
-            {/* Reduced motion toggle */}
+            {/* Motion effects toggle */}
             <button
               type="button"
               onClick={onToggleReducedMotion}
-              className={`btn-ghost text-xs p-2 ${
-                prefersReducedMotion ? 'text-amber-500' : 'text-slate-500'
-              }`}
+              aria-pressed={!prefersReducedMotion}
+              aria-label={
+                prefersReducedMotion
+                  ? 'Reduced motion enabled. Click to enable motion effects.'
+                  : 'Motion effects enabled. Click to reduce motion.'
+              }
               title={
                 prefersReducedMotion
-                  ? 'Reduced motion is enabled. Click to allow motion effects.'
-                  : 'Click to enable reduced motion mode.'
+                  ? 'Reduced motion is active. Click to enable motion effects.'
+                  : 'Motion effects are enabled. Click to reduce motion.'
               }
-              aria-label="Toggle reduced motion"
+              className={`btn-ghost text-xs p-2 rounded-lg transition-colors border ${
+                !prefersReducedMotion
+                  ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50/80 dark:bg-indigo-950/60 border-indigo-200 dark:border-indigo-800/80 shadow-xs ring-1 ring-indigo-500/20'
+                  : 'text-slate-500 dark:text-slate-400 border-slate-200/50 dark:border-slate-800/50 bg-slate-100/50 dark:bg-slate-900/50 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+              data-testid="motion-toggle"
             >
-              <Activity className="w-4 h-4" />
+              {!prefersReducedMotion ? (
+                <Zap className="w-4 h-4 fill-indigo-500/20 text-indigo-600 dark:text-indigo-400" />
+              ) : (
+                <ZapOff className="w-4 h-4 text-slate-400 dark:text-slate-500" />
+              )}
             </button>
 
             {/* Theme Toggle */}

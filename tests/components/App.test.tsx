@@ -102,6 +102,27 @@ describe('App Component', () => {
     expect(document.documentElement.classList.contains('dark')).toBe(true);
   });
 
+  it('toggles motion effects and updates aria-pressed and data-regexlab-motion attribute', () => {
+    render(<App />);
+
+    const motionBtn = screen.getByTestId('motion-toggle');
+    expect(motionBtn).toBeInTheDocument();
+    expect(motionBtn).toHaveAttribute('aria-pressed', 'true');
+    expect(document.documentElement.getAttribute('data-regexlab-motion')).toBe('full');
+
+    fireEvent.click(motionBtn);
+
+    expect(motionBtn).toHaveAttribute('aria-pressed', 'false');
+    expect(document.documentElement.getAttribute('data-regexlab-motion')).toBe('reduced');
+    expect(localStorage.getItem('regexlab_reduced_motion')).toBe('true');
+
+    fireEvent.click(motionBtn);
+
+    expect(motionBtn).toHaveAttribute('aria-pressed', 'true');
+    expect(document.documentElement.getAttribute('data-regexlab-motion')).toBe('full');
+    expect(localStorage.getItem('regexlab_reduced_motion')).toBe('false');
+  });
+
   it('prevents an older in-flight result from overwriting state after Next Pattern is clicked with Live evaluation disabled, clears replacement preview, and subsequent manual Run works', async () => {
     render(<App />);
 
