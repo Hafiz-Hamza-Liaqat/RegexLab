@@ -35,6 +35,7 @@ export const RegexArcadeView: React.FC<RegexArcadeViewProps> = ({
   const [unlockedHints, setUnlockedHints] = useState<number>(0);
   const [evalResult, setEvalResult] = useState<MissionEvaluationResult | null>(null);
   const [justSolved, setJustSolved] = useState<boolean>(false);
+  const [lastXpAwarded, setLastXpAwarded] = useState<number | null>(null);
   const [isTrophyModalOpen, setIsTrophyModalOpen] = useState<boolean>(false);
 
   const currentMission: Mission =
@@ -49,6 +50,7 @@ export const RegexArcadeView: React.FC<RegexArcadeViewProps> = ({
     setUnlockedHints(progress.hintsUsedByMission[mission.id] ?? 0);
     setEvalResult(null);
     setJustSolved(false);
+    setLastXpAwarded(null);
   };
 
   const handleFlagToggle = (f: string) => {
@@ -73,15 +75,17 @@ export const RegexArcadeView: React.FC<RegexArcadeViewProps> = ({
     if (result.passed) {
       setJustSolved(true);
       // Award XP and achievements
-      const { progress: updated } = awardMissionCompletion(
+      const { progress: updated, xpAwarded } = awardMissionCompletion(
         progress,
         currentMission.id,
         currentMission.xpReward,
         unlockedHints
       );
+      setLastXpAwarded(xpAwarded);
       onUpdateProgress(updated);
     } else {
       setJustSolved(false);
+      setLastXpAwarded(null);
     }
   };
 
@@ -371,7 +375,7 @@ export const RegexArcadeView: React.FC<RegexArcadeViewProps> = ({
                     {evalResult.passed ? (
                       <>
                         <CheckCircle className="w-5 h-5 text-emerald-500" />
-                        <span>Case Solved! (+{isCompleted ? 0 : currentMission.xpReward} XP awarded)</span>
+                        <span>Case Solved! (+{lastXpAwarded ?? (isCompleted ? 0 : currentMission.xpReward)} XP awarded)</span>
                       </>
                     ) : (
                       <>

@@ -162,8 +162,8 @@ Genuine screenshots captured from the live running application:
 ### 3. Find & Replace Engine
 ![Find and Replace Output](docs/screenshots/03-find-and-replace.png)
 
-### 4. Regex Arcade Mission in Progress
-![Regex Arcade Mission](docs/screenshots/04-regex-arcade-mission.png)
+### 4. Regex Arcade — Solved Case & Test Verification
+![Regex Arcade Solved Case](docs/screenshots/04-regex-arcade-mission.png)
 
 ### 5. Learning Handbook & Interactive Token Explainer
 ![Learning Handbook](docs/screenshots/05-learning-handbook.png)
@@ -217,7 +217,7 @@ npm run check
 This runs:
 1. `npm run lint` — Oxlint and ESLint checks (0 errors, 0 warnings).
 2. `npm run typecheck` — TypeScript strict typecheck (`tsc -b`).
-3. `npm run test:run` — Vitest unit & component test suite (57 passing tests).
+3. `npm run test:run` — Vitest unit & component test suite (63 passing tests).
 
 ### Playwright End-to-End Tests
 
@@ -225,7 +225,7 @@ This runs:
 npm run test:e2e
 ```
 
-Executes 18 comprehensive browser automation tests covering:
+Executes 28 comprehensive browser automation tests covering:
 - Normal and edge-case regex matching
 - Capture groups and named groups inspection
 - Flag toggling and presets
@@ -241,7 +241,7 @@ Executes 18 comprehensive browser automation tests covering:
 npm run verify:build
 ```
 
-Ensures all generated bundles and assets in `dist/index.html` strictly reference `/regexlab/assets/` and exist on disk with non-zero file sizes.
+Verifies that all JavaScript, CSS, and Web Worker bundles referenced in `dist/index.html` (using relative `./assets/` resolution for resilience across casing differences) exist on disk with non-zero file sizes.
 
 ### Screenshot Capture Script
 
@@ -258,7 +258,7 @@ Starts Vite, launches Playwright Chromium headless, and captures genuine 1440px 
 RegexLab is automated with two GitHub Actions workflows:
 
 1. **`ci.yml`**: Runs on every push and pull request to `main`, validating linting, typechecks, tests, and production build.
-2. **`pages.yml`**: Builds with `BASE_PATH=/regexlab/`, verifies asset paths using `verify-build.mjs`, and deploys the static site to GitHub Pages.
+2. **`pages.yml`**: Builds static production assets, verifies bundle references and non-zero sizes via `verify-build.mjs`, and deploys the site to GitHub Pages.
 
 ---
 

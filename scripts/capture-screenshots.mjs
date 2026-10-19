@@ -114,7 +114,7 @@ async function run() {
       await context.close();
     }
 
-    // 4. Regex Arcade Mission in Progress
+    // 4. Regex Arcade Solved Case & Test Verification
     console.log('Capturing 04-regex-arcade-mission.png...');
     {
       const context = await browser.newContext({
@@ -124,6 +124,9 @@ async function run() {
       });
       const page = await context.newPage();
       await page.goto(baseUrl);
+      // Ensure clean storage so Mission 1 is solved fresh with full reward
+      await page.evaluate(() => localStorage.clear());
+      await page.reload();
 
       // Open Arcade
       await page.getByRole('tab', { name: /Regex Arcade/i }).click();
@@ -134,7 +137,7 @@ async function run() {
       await patternInput.fill('\\d+');
       await page.getByRole('button', { name: 'Test Solution' }).click();
       await page.getByText(/Case Solved!/i).waitFor({ state: 'visible' });
-      await page.waitForTimeout(400);
+      await page.waitForTimeout(500);
 
       await page.screenshot({
         path: path.join(outDir, '04-regex-arcade-mission.png'),
